@@ -1,3 +1,4 @@
+mod audio;
 mod config;
 
 use config::settings::{AppConfig, load_config, save_config};
