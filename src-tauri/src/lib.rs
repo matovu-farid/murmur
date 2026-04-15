@@ -336,6 +336,39 @@ pub fn run() {
         .setup(move |app| {
             tray::setup_tray(app)?;
 
+            // Create the overlay window (transparent, always on top)
+            let _overlay = tauri::WebviewWindowBuilder::new(
+                app,
+                "overlay",
+                tauri::WebviewUrl::App("/#/".into()),
+            )
+            .title("Wipr Overlay")
+            .decorations(false)
+            .always_on_top(true)
+            .inner_size(400.0, 100.0)
+            .skip_taskbar(true)
+            .build()?;
+
+            // Check if first run -> show onboarding
+            {
+                let cfg = load_config();
+                if cfg.general.first_run {
+                    let _onboarding = tauri::WebviewWindowBuilder::new(
+                        app,
+                        "onboarding",
+                        tauri::WebviewUrl::App("/#/onboarding".into()),
+                    )
+                    .title("Welcome to Wipr")
+                    .inner_size(500.0, 600.0)
+                    .center()
+                    .build()?;
+
+                    let mut updated = cfg;
+                    updated.general.first_run = false;
+                    save_config(&updated).ok();
+                }
+            }
+
             let app_handle = app.handle().clone();
             start_dictation_pipeline(app_handle, state_for_pipeline);
 

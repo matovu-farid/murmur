@@ -53,6 +53,7 @@ pub struct VoiceCommandsConfig {
 pub struct GeneralConfig {
     pub auto_start: bool,
     pub context_aware: bool,
+    pub first_run: bool,
 }
 
 impl Default for AppConfig {
@@ -75,6 +76,7 @@ impl Default for AppConfig {
             general: GeneralConfig {
                 auto_start: true,
                 context_aware: true,
+                first_run: true,
             },
         }
     }
