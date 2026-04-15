@@ -84,4 +84,44 @@ mod tests {
         let max = result.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
         assert!((max - 0.9).abs() < 0.1);
     }
+
+    #[test]
+    fn test_trim_silence_no_silence() {
+        let samples = vec![0.5, -0.3, 0.8, -0.6, 0.2];
+        let trimmed = trim_silence(&samples, 0.01);
+        assert_eq!(trimmed, &[0.5, -0.3, 0.8, -0.6, 0.2]);
+    }
+
+    #[test]
+    fn test_trim_silence_empty_input() {
+        let samples: Vec<f32> = vec![];
+        let trimmed = trim_silence(&samples, 0.01);
+        assert!(trimmed.is_empty());
+    }
+
+    #[test]
+    fn test_normalize_gain_clamps_to_range() {
+        // With target_peak > 1.0, values should still be clamped to [-1, 1]
+        let samples = vec![0.5, -0.8, 0.3];
+        let normalized = normalize_gain(&samples, 2.0);
+        for &s in &normalized {
+            assert!(s >= -1.0 && s <= 1.0, "Sample {} out of [-1, 1] range", s);
+        }
+    }
+
+    #[test]
+    fn test_reduce_noise_very_short_input() {
+        // Input shorter than noise sample window should be returned as-is
+        let samples = vec![0.5, -0.3, 0.1];
+        let result = reduce_noise(&samples, 16000);
+        assert_eq!(result, samples);
+    }
+
+    #[test]
+    fn test_preprocess_all_silence_returns_empty() {
+        // All-silence input: noise floor region + silent signal
+        let samples = vec![0.0f32; 16000];
+        let result = preprocess(&samples, 16000);
+        assert!(result.is_empty());
+    }
 }

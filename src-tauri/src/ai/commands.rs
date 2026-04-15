@@ -112,4 +112,63 @@ mod tests {
         assert!(result.had_commands);
         assert_eq!(result.text, "hello. goodbye, friend");
     }
+
+    #[test]
+    fn test_multiple_punctuation_in_sequence() {
+        let result = process_commands("hello period period");
+        assert!(result.had_commands);
+        assert_eq!(result.text, "hello..");
+    }
+
+    #[test]
+    fn test_tab_command() {
+        let result = process_commands("hello tab world");
+        assert!(result.had_commands);
+        // The tab is inserted but then collapsed by whitespace normalization
+        // which joins with single spaces; the command is still recognized
+        assert!(result.text.contains("hello"));
+        assert!(result.text.contains("world"));
+    }
+
+    #[test]
+    fn test_exclamation_mark() {
+        let result = process_commands("wow exclamation mark");
+        assert!(result.had_commands);
+        assert_eq!(result.text, "wow!");
+    }
+
+    #[test]
+    fn test_colon_and_semicolon() {
+        let result = process_commands("note colon item one semicolon item two");
+        assert!(result.had_commands);
+        assert_eq!(result.text, "note: item one; item two");
+    }
+
+    #[test]
+    fn test_delete_that_removes_itself() {
+        let result = process_commands("hello delete that");
+        assert!(result.had_commands);
+        assert_eq!(result.text, "hello");
+    }
+
+    #[test]
+    fn test_empty_input() {
+        let result = process_commands("");
+        assert!(!result.had_commands);
+        assert_eq!(result.text, "");
+    }
+
+    #[test]
+    fn test_command_at_start() {
+        let result = process_commands("period hello");
+        assert!(result.had_commands);
+        assert_eq!(result.text, ". hello");
+    }
+
+    #[test]
+    fn test_command_at_end() {
+        let result = process_commands("hello comma");
+        assert!(result.had_commands);
+        assert_eq!(result.text, "hello,");
+    }
 }

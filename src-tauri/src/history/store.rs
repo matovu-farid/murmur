@@ -169,4 +169,60 @@ mod tests {
         let entries = store.get_all().unwrap();
         assert_eq!(entries[0].raw_text, "second");
     }
+
+    #[test]
+    fn test_insert_multiple_and_retrieve() {
+        let store = HistoryStore::new_in_memory().unwrap();
+        store.insert("one", "One", 1.0).unwrap();
+        store.insert("two", "Two", 2.0).unwrap();
+        store.insert("three", "Three", 3.0).unwrap();
+        let entries = store.get_all().unwrap();
+        assert_eq!(entries.len(), 3);
+        // Newest first
+        assert_eq!(entries[0].raw_text, "three");
+        assert_eq!(entries[1].raw_text, "two");
+        assert_eq!(entries[2].raw_text, "one");
+    }
+
+    #[test]
+    fn test_search_no_results() {
+        let store = HistoryStore::new_in_memory().unwrap();
+        store.insert("hello world", "Hello, world!", 1.0).unwrap();
+        let results = store.search("nonexistent").unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_case_sensitivity() {
+        let store = HistoryStore::new_in_memory().unwrap();
+        store.insert("Hello World", "Hello World", 1.0).unwrap();
+        // SQLite LIKE is case-insensitive for ASCII by default
+        let results = store.search("hello").unwrap();
+        assert_eq!(results.len(), 1);
+        let results_upper = store.search("HELLO").unwrap();
+        assert_eq!(results_upper.len(), 1);
+    }
+
+    #[test]
+    fn test_delete_nonexistent_id() {
+        let store = HistoryStore::new_in_memory().unwrap();
+        // Deleting a non-existent id should not error
+        let result = store.delete(9999);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_export_json_valid_array() {
+        let store = HistoryStore::new_in_memory().unwrap();
+        store.insert("alpha", "Alpha", 1.0).unwrap();
+        store.insert("beta", "Beta", 2.0).unwrap();
+        let json = store.export_json().unwrap();
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.len(), 2);
+        // Each entry should have the expected fields
+        assert!(parsed[0].get("raw_text").is_some());
+        assert!(parsed[0].get("cleaned_text").is_some());
+        assert!(parsed[0].get("timestamp").is_some());
+        assert!(parsed[0].get("duration_secs").is_some());
+    }
 }

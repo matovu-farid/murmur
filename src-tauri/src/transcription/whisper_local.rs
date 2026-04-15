@@ -97,4 +97,30 @@ mod tests {
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Model not found"));
     }
+
+    #[test]
+    fn test_model_download_url_tiny_en() {
+        let url = model_download_url("tiny.en");
+        assert_eq!(url, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin");
+    }
+
+    #[test]
+    fn test_model_download_url_base_en() {
+        let url = model_download_url("base.en");
+        assert_eq!(url, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin");
+    }
+
+    #[test]
+    fn test_model_download_url_small_en() {
+        let url = model_download_url("small.en");
+        assert_eq!(url, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin");
+    }
+
+    #[test]
+    fn test_transcribe_local_empty_path() {
+        let result = transcribe_local(&[0.0; 16000], "");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Model not found"));
+    }
 }

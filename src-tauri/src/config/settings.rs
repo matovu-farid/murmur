@@ -141,4 +141,80 @@ mod tests {
         assert_eq!(deserialized.transcription.model, "medium.en");
         assert_eq!(deserialized.hotkey.mode, HotkeyMode::Hold);
     }
+
+    #[test]
+    fn test_transcription_mode_api_serialization() {
+        let mode = TranscriptionMode::Api;
+        let json = serde_json::to_string(&mode).unwrap();
+        assert_eq!(json, "\"api\"");
+        let deserialized: TranscriptionMode = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, TranscriptionMode::Api);
+    }
+
+    #[test]
+    fn test_transcription_mode_local_serialization() {
+        let mode = TranscriptionMode::Local;
+        let json = serde_json::to_string(&mode).unwrap();
+        assert_eq!(json, "\"local\"");
+        let deserialized: TranscriptionMode = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, TranscriptionMode::Local);
+    }
+
+    #[test]
+    fn test_hotkey_mode_toggle_serialization() {
+        let mode = HotkeyMode::Toggle;
+        let json = serde_json::to_string(&mode).unwrap();
+        assert_eq!(json, "\"toggle\"");
+        let deserialized: HotkeyMode = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, HotkeyMode::Toggle);
+    }
+
+    #[test]
+    fn test_config_custom_values_roundtrip() {
+        let config = AppConfig {
+            transcription: TranscriptionConfig {
+                mode: TranscriptionMode::Api,
+                model: "tiny.en".to_string(),
+                api_key: "sk-test-key".to_string(),
+            },
+            ai_cleanup: AiCleanupConfig {
+                enabled: false,
+                custom_instructions: "Be concise".to_string(),
+            },
+            hotkey: HotkeyConfig {
+                key: "space".to_string(),
+                mode: HotkeyMode::Toggle,
+            },
+            voice_commands: VoiceCommandsConfig { enabled: false },
+            general: GeneralConfig {
+                auto_start: false,
+                context_aware: false,
+                first_run: false,
+            },
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.transcription.mode, TranscriptionMode::Api);
+        assert_eq!(deserialized.transcription.model, "tiny.en");
+        assert_eq!(deserialized.transcription.api_key, "sk-test-key");
+        assert!(!deserialized.ai_cleanup.enabled);
+        assert_eq!(deserialized.ai_cleanup.custom_instructions, "Be concise");
+        assert_eq!(deserialized.hotkey.key, "space");
+        assert_eq!(deserialized.hotkey.mode, HotkeyMode::Toggle);
+        assert!(!deserialized.voice_commands.enabled);
+        assert!(!deserialized.general.auto_start);
+        assert!(!deserialized.general.first_run);
+    }
+
+    #[test]
+    fn test_default_model_is_medium_en() {
+        let config = AppConfig::default();
+        assert_eq!(config.transcription.model, "medium.en");
+    }
+
+    #[test]
+    fn test_config_dir_ends_with_murmur() {
+        let dir = config_dir();
+        assert!(dir.ends_with("murmur"), "config_dir should end with 'murmur', got: {:?}", dir);
+    }
 }

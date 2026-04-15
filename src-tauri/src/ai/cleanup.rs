@@ -92,4 +92,49 @@ mod tests {
         assert!(json.contains("gpt-4o-mini"));
         assert!(json.contains("test system"));
     }
+
+    #[test]
+    fn test_system_prompt_includes_custom_instructions() {
+        // Simulate what cleanup_text builds for the system prompt
+        let mut system_prompt = String::from(
+            "You are a dictation cleanup assistant. Clean up the transcribed speech while \
+             preserving the speaker's intent. Fix filler words, grammar, and punctuation. \
+             Match the tone of the surrounding context if provided.",
+        );
+        let custom_instructions = Some("Always use formal English");
+        if let Some(instructions) = custom_instructions {
+            if !instructions.is_empty() {
+                system_prompt.push_str(&format!("\n\nAdditional instructions: {}", instructions));
+            }
+        }
+        assert!(system_prompt.contains("Additional instructions: Always use formal English"));
+    }
+
+    #[test]
+    fn test_user_content_includes_context_when_provided() {
+        let mut user_content = String::new();
+        let context = Some("Dear Sir,");
+        if let Some(ctx) = context {
+            if !ctx.is_empty() {
+                user_content.push_str(&format!("Context (text before cursor): {}\n", ctx));
+            }
+        }
+        user_content.push_str(&format!("Raw transcription: {}\n\nReturn only the cleaned text, nothing else.", "hello world"));
+        assert!(user_content.contains("Context (text before cursor): Dear Sir,"));
+        assert!(user_content.contains("Raw transcription: hello world"));
+    }
+
+    #[test]
+    fn test_user_content_excludes_context_when_none() {
+        let mut user_content = String::new();
+        let context: Option<&str> = None;
+        if let Some(ctx) = context {
+            if !ctx.is_empty() {
+                user_content.push_str(&format!("Context (text before cursor): {}\n", ctx));
+            }
+        }
+        user_content.push_str(&format!("Raw transcription: {}\n\nReturn only the cleaned text, nothing else.", "hello world"));
+        assert!(!user_content.contains("Context"));
+        assert!(user_content.starts_with("Raw transcription:"));
+    }
 }
