@@ -1,5 +1,6 @@
 mod audio;
 mod config;
+mod transcription;
 
 use config::settings::{AppConfig, load_config, save_config};
 use std::sync::Mutex;
