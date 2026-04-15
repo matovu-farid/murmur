@@ -3,6 +3,7 @@ mod config;
 mod transcription;
 mod ai;
 mod input;
+mod history;
 
 use config::settings::{AppConfig, load_config, save_config};
 use std::sync::Mutex;
