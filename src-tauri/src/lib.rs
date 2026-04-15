@@ -100,198 +100,198 @@ async fn download_model(app: tauri::AppHandle, model_name: String) -> Result<Str
 // Dictation pipeline
 // ---------------------------------------------------------------------------
 
-/// Wrapper to assert Send for cpal::Stream.
-/// SAFETY: The Stream is only ever accessed on the single hotkey-monitor thread
-/// where it was created. The Send bound is required by the HotkeyCallback type
-/// but the value never actually crosses thread boundaries.
-struct SendStream(Option<cpal::Stream>);
-unsafe impl Send for SendStream {}
-
 fn start_dictation_pipeline(app_handle: tauri::AppHandle, state: Arc<AppState>) {
+    // Channel for hotkey events → recording thread
+    let (hotkey_tx, hotkey_rx) = std::sync::mpsc::channel::<input::hotkey::HotkeyEvent>();
+    // Channel for recorded samples → processing thread
+    let (audio_tx, audio_rx) = std::sync::mpsc::channel::<(Vec<f32>, u32, f32)>();
+
+    // Recording thread — owns the Recorder and cpal::Stream (both !Send)
+    let app_rec = app_handle.clone();
     std::thread::spawn(move || {
-        // Recorder and Stream must live on the same thread (cpal types are !Send).
-        let recorder = Arc::new(audio::Recorder::new());
-        // Hold onto the cpal::Stream while recording so it isn't dropped.
-        let active_stream: Arc<Mutex<SendStream>> = Arc::new(Mutex::new(SendStream(None)));
+        let recorder = audio::Recorder::new();
+        let mut active_stream: Option<cpal::Stream> = None;
 
-        let rec = recorder.clone();
-        let stream_holder = active_stream.clone();
-        let app = app_handle.clone();
-        let st = state.clone();
-
-        // The fn-key monitor runs its own CFRunLoop, so this callback executes
-        // on the monitor thread — the same thread where cpal objects were created.
-        let _monitor = input::hotkey::start_fn_key_monitor(Box::new(move |event| {
+        while let Ok(event) = hotkey_rx.recv() {
             match event {
                 input::hotkey::HotkeyEvent::RecordStart => {
-                    let _ = app.emit("dictation-state", "recording");
-                    match rec.start() {
-                        Ok(stream) => {
-                            stream_holder.lock().unwrap().0 = Some(stream);
-                        }
+                    let _ = app_rec.emit("dictation-state", "recording");
+                    match recorder.start() {
+                        Ok(stream) => { active_stream = Some(stream); }
                         Err(e) => {
                             eprintln!("Failed to start recording: {}", e);
-                            let _ = app.emit("dictation-error", e);
+                            let _ = app_rec.emit("dictation-error", e);
                         }
                     }
                 }
                 input::hotkey::HotkeyEvent::RecordStop => {
-                    let samples = rec.stop();
-                    // Drop the stream so cpal releases the device.
-                    stream_holder.lock().unwrap().0 = None;
+                    let samples = recorder.stop();
+                    active_stream = None;
 
-                    let sample_rate = rec.sample_rate();
+                    let sample_rate = recorder.sample_rate();
                     let duration = audio::Recorder::duration_secs(&samples, sample_rate);
 
                     if duration < audio::Recorder::MIN_DURATION {
-                        let _ = app.emit("dictation-state", "idle");
-                        return;
+                        let _ = app_rec.emit("dictation-state", "idle");
+                        continue;
                     }
 
-                    let _ = app.emit("dictation-state", "processing");
-
-                    // Clone what we need for the async processing block.
-                    let app2 = app.clone();
-                    let st2 = st.clone();
-
-                    // Spawn an async task on the Tauri runtime for network I/O.
-                    tauri::async_runtime::spawn(async move {
-                        // 1. Preprocess
-                        let processed = audio::preprocessing::preprocess(&samples, sample_rate);
-                        if processed.is_empty() {
-                            let _ = app2.emit("dictation-state", "idle");
-                            return;
-                        }
-
-                        // 2. Read config snapshot
-                        let cfg = st2.config.lock().unwrap().clone();
-
-                        // 3. Transcribe
-                        let _ = app2.emit("dictation-state", "transcribing");
-                        let raw_text = match cfg.transcription.mode {
-                            TranscriptionMode::Api => {
-                                transcription::whisper_api::transcribe_api(
-                                    &processed,
-                                    sample_rate,
-                                    &cfg.transcription.api_key,
-                                )
-                                .await
-                            }
-                            TranscriptionMode::Local => {
-                                let model_path = models_dir()
-                                    .join(format!("ggml-{}.bin", cfg.transcription.model));
-                                let mp = model_path.to_string_lossy().to_string();
-                                let audio = processed.clone();
-                                // Run the blocking local transcription off the async runtime.
-                                tokio::task::spawn_blocking(move || {
-                                    transcription::whisper_local::transcribe_local(&audio, &mp)
-                                })
-                                .await
-                                .unwrap_or_else(|e| {
-                                    Err(transcription::TranscribeError::ModelError(e.to_string()))
-                                })
-                            }
-                        };
-
-                        let raw_text = match raw_text {
-                            Ok(t) => t,
-                            Err(e) => {
-                                eprintln!("Transcription error: {}", e);
-                                let _ = app2.emit("dictation-error", e.to_string());
-                                let _ = app2.emit("dictation-state", "idle");
-                                return;
-                            }
-                        };
-
-                        if raw_text.trim().is_empty() {
-                            let _ = app2.emit("dictation-state", "idle");
-                            return;
-                        }
-
-                        // 4. Process voice commands
-                        let cmd_result = ai::commands::process_commands(&raw_text);
-                        if cmd_result.should_stop {
-                            let _ = app2.emit("dictation-state", "idle");
-                            return;
-                        }
-
-                        let text_after_commands = cmd_result.text.clone();
-                        if text_after_commands.is_empty() {
-                            let _ = app2.emit("dictation-state", "idle");
-                            return;
-                        }
-
-                        // 5. AI cleanup (if enabled)
-                        let final_text = if cfg.ai_cleanup.enabled
-                            && !cfg.transcription.api_key.is_empty()
-                        {
-                            let _ = app2.emit("dictation-state", "cleaning");
-
-                            let context = if cfg.general.context_aware {
-                                let ctx = ai::context::read_cursor_context(200);
-                                if ctx.is_empty() { None } else { Some(ctx) }
-                            } else {
-                                None
-                            };
-
-                            let instructions = if cfg.ai_cleanup.custom_instructions.is_empty() {
-                                None
-                            } else {
-                                Some(cfg.ai_cleanup.custom_instructions.as_str())
-                            };
-
-                            match ai::cleanup::cleanup_text(
-                                &text_after_commands,
-                                context.as_deref(),
-                                instructions,
-                                &cfg.transcription.api_key,
-                            )
-                            .await
-                            {
-                                Ok(cleaned) => cleaned,
-                                Err(e) => {
-                                    eprintln!("Cleanup error: {}", e);
-                                    text_after_commands.clone()
-                                }
-                            }
-                        } else {
-                            text_after_commands.clone()
-                        };
-
-                        // 6. Insert at cursor
-                        let _ = app2.emit("dictation-state", "inserting");
-                        if let Err(e) = input::insertion::insert_at_cursor(&final_text) {
-                            eprintln!("Insert error: {}", e);
-                            let _ = app2.emit("dictation-error", e);
-                        }
-
-                        // 7. Log to history
-                        if let Err(e) = st2
-                            .history
-                            .lock()
-                            .unwrap()
-                            .insert(&raw_text, &final_text, duration)
-                        {
-                            eprintln!("History insert error: {}", e);
-                        }
-
-                        let _ = app2.emit("dictation-state", "idle");
-                        let _ = app2.emit("dictation-result", serde_json::json!({
-                            "raw": raw_text,
-                            "final": final_text,
-                            "duration": duration,
-                        }));
-                    });
+                    let _ = app_rec.emit("dictation-state", "processing");
+                    audio_tx.send((samples, sample_rate, duration)).ok();
                 }
             }
-        }));
-
-        // Keep the monitor alive for the lifetime of the application.
-        // We park this thread so the FnKeyMonitor (and its JoinHandle) is never dropped.
-        loop {
-            std::thread::park();
         }
     });
+
+    // Processing thread — picks up recorded audio and spawns async tasks
+    let app_proc = app_handle.clone();
+    let st_proc = state.clone();
+    std::thread::spawn(move || {
+        while let Ok((samples, sample_rate, duration)) = audio_rx.recv() {
+            let app2 = app_proc.clone();
+            let st2 = st_proc.clone();
+            tauri::async_runtime::spawn(async move {
+                process_recording(app2, st2, samples, sample_rate, duration).await;
+            });
+        }
+    });
+
+    // Hotkey monitor thread — sends events to the recording thread via channel
+    std::thread::spawn(move || {
+        let _monitor = input::hotkey::start_fn_key_monitor(Box::new(move |event| {
+            hotkey_tx.send(event).ok();
+        }));
+        loop { std::thread::park(); }
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Recording processor (runs on async runtime)
+// ---------------------------------------------------------------------------
+
+async fn process_recording(
+    app: tauri::AppHandle,
+    state: Arc<AppState>,
+    samples: Vec<f32>,
+    sample_rate: u32,
+    duration: f32,
+) {
+    // 1. Preprocess
+    let processed = audio::preprocessing::preprocess(&samples, sample_rate);
+    if processed.is_empty() {
+        let _ = app.emit("dictation-state", "idle");
+        return;
+    }
+
+    // 2. Read config snapshot
+    let cfg = state.config.lock().unwrap().clone();
+
+    // 3. Transcribe
+    let _ = app.emit("dictation-state", "transcribing");
+    let raw_text = match cfg.transcription.mode {
+        TranscriptionMode::Api => {
+            transcription::whisper_api::transcribe_api(
+                &processed,
+                sample_rate,
+                &cfg.transcription.api_key,
+            )
+            .await
+        }
+        TranscriptionMode::Local => {
+            let model_path =
+                models_dir().join(format!("ggml-{}.bin", cfg.transcription.model));
+            let mp = model_path.to_string_lossy().to_string();
+            let audio = processed.clone();
+            tokio::task::spawn_blocking(move || {
+                transcription::whisper_local::transcribe_local(&audio, &mp)
+            })
+            .await
+            .unwrap_or_else(|e| {
+                Err(transcription::TranscribeError::ModelError(e.to_string()))
+            })
+        }
+    };
+
+    let raw_text = match raw_text {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("Transcription error: {}", e);
+            let _ = app.emit("dictation-error", e.to_string());
+            let _ = app.emit("dictation-state", "idle");
+            return;
+        }
+    };
+
+    if raw_text.trim().is_empty() {
+        let _ = app.emit("dictation-state", "idle");
+        return;
+    }
+
+    // 4. Process voice commands
+    let cmd_result = ai::commands::process_commands(&raw_text);
+    if cmd_result.should_stop {
+        let _ = app.emit("dictation-state", "idle");
+        return;
+    }
+
+    let text_after_commands = cmd_result.text.clone();
+    if text_after_commands.is_empty() {
+        let _ = app.emit("dictation-state", "idle");
+        return;
+    }
+
+    // 5. AI cleanup (if enabled)
+    let final_text = if cfg.ai_cleanup.enabled && !cfg.transcription.api_key.is_empty() {
+        let _ = app.emit("dictation-state", "cleaning");
+
+        let context = if cfg.general.context_aware {
+            let ctx = ai::context::read_cursor_context(200);
+            if ctx.is_empty() { None } else { Some(ctx) }
+        } else {
+            None
+        };
+
+        let instructions = if cfg.ai_cleanup.custom_instructions.is_empty() {
+            None
+        } else {
+            Some(cfg.ai_cleanup.custom_instructions.as_str())
+        };
+
+        match ai::cleanup::cleanup_text(
+            &text_after_commands,
+            context.as_deref(),
+            instructions,
+            &cfg.transcription.api_key,
+        )
+        .await
+        {
+            Ok(cleaned) => cleaned,
+            Err(e) => {
+                eprintln!("Cleanup error: {}", e);
+                text_after_commands.clone()
+            }
+        }
+    } else {
+        text_after_commands.clone()
+    };
+
+    // 6. Insert at cursor
+    let _ = app.emit("dictation-state", "inserting");
+    if let Err(e) = input::insertion::insert_at_cursor(&final_text) {
+        eprintln!("Insert error: {}", e);
+        let _ = app.emit("dictation-error", e);
+    }
+
+    // 7. Log to history
+    if let Err(e) = state.history.lock().unwrap().insert(&raw_text, &final_text, duration) {
+        eprintln!("History insert error: {}", e);
+    }
+
+    let _ = app.emit("dictation-state", "idle");
+    let _ = app.emit(
+        "dictation-result",
+        serde_json::json!({ "raw": raw_text, "final": final_text, "duration": duration }),
+    );
 }
 
 // ---------------------------------------------------------------------------
