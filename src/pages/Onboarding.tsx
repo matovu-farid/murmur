@@ -60,12 +60,12 @@ export function Onboarding() {
       <OnboardingStep
         step={0}
         totalSteps={TOTAL_STEPS}
-        title="Welcome to Wipr"
+        title="Welcome to Murmur"
         onNext={next}
         nextLabel="Get Started"
       >
         <p className="text-sm text-text-muted leading-relaxed">
-          Wipr is a voice-to-text tool that lets you dictate text anywhere on
+          Murmur is a voice-to-text tool that lets you dictate text anywhere on
           your Mac. Press a hotkey, speak, and your words appear wherever your
           cursor is.
         </p>
@@ -79,14 +79,14 @@ export function Onboarding() {
       <OnboardingStep
         step={1}
         totalSteps={TOTAL_STEPS}
-        title="Accessibility Permission"
+        title="Input Monitoring Permission"
         onNext={next}
         onBack={back}
         nextDisabled={!hasAccessibility}
       >
         <p className="text-sm text-text-muted mb-4">
-          Wipr needs accessibility access to insert text into other
-          applications.
+          Murmur needs Input Monitoring permission to detect your hotkey and
+          insert text into other applications.
         </p>
         <div className="flex items-center gap-3 mb-4">
           <div
@@ -110,6 +110,12 @@ export function Onboarding() {
             Check Again
           </button>
         </div>
+        <div className="mt-4 p-3 bg-surface rounded-lg border border-white/10">
+          <p className="text-xs text-text-muted">
+            After granting permission, you may need to restart Murmur for the
+            change to take effect.
+          </p>
+        </div>
       </OnboardingStep>
     );
   }
@@ -125,8 +131,9 @@ export function Onboarding() {
         onBack={back}
       >
         <p className="text-sm text-text-muted leading-relaxed">
-          When you first use the hotkey to record, macOS will ask for microphone
-          permission. Please allow it so Wipr can capture your voice.
+          When you first use the hotkey to record, macOS will automatically show
+          a dialog asking for microphone permission. Please allow it so Murmur
+          can capture your voice.
         </p>
         <div className="mt-4 p-3 bg-surface rounded-lg border border-white/10">
           <p className="text-xs text-text-muted">
@@ -246,7 +253,7 @@ export function Onboarding() {
       nextLabel="Finish"
     >
       <p className="text-sm text-text-muted leading-relaxed">
-        Wipr is ready to use. It will run in your menu bar. Press your hotkey
+        Murmur is ready to use. It will run in your menu bar. Press your hotkey
         anytime to start dictating. You can change settings from the tray menu.
       </p>
       <div className="mt-4 p-3 bg-surface rounded-lg border border-white/10 space-y-2">

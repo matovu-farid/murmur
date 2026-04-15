@@ -13,9 +13,9 @@ fn open_or_focus_window(app: &tauri::AppHandle, label: &str, url: &str) {
     } else {
         let _win = tauri::WebviewWindowBuilder::new(app, label, tauri::WebviewUrl::App(url.into()))
             .title(match label {
-                "settings" => "Wipr - Settings",
-                "history" => "Wipr - History",
-                _ => "Wipr",
+                "settings" => "Murmur - Settings",
+                "history" => "Murmur - History",
+                _ => "Murmur",
             })
             .inner_size(800.0, 600.0)
             .build();
@@ -57,7 +57,7 @@ pub fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     TrayIconBuilder::new()
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .tooltip("Wipr - Voice to Text")
+        .tooltip("Murmur - Voice to Text")
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "settings" => {
                 open_or_focus_window(app, "settings", "/#/settings");

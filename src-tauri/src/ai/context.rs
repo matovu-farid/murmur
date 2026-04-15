@@ -53,19 +53,26 @@ fn read_context_inner(max_chars: usize) -> Result<String, String> {
     }
 }
 
+/// Check if the app has accessibility/input monitoring permissions.
+/// Uses AXIsProcessTrusted() from macOS ApplicationServices framework.
 pub fn has_accessibility_permission() -> bool {
-    let output = std::process::Command::new("osascript")
-        .arg("-e")
-        .arg(r#"tell application "System Events" to get name of first application process whose frontmost is true"#)
-        .output();
-
-    match output {
-        Ok(o) => o.status.success(),
-        Err(_) => false,
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
     }
+    unsafe { AXIsProcessTrusted() }
 }
 
+/// Open System Settings to the Input Monitoring privacy pane.
 pub fn open_accessibility_settings() {
+    // On macOS 13+, this opens the Input Monitoring section
+    std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+        .spawn()
+        .ok();
+}
+
+/// Open System Settings to the Accessibility privacy pane.
+pub fn open_accessibility_pane() {
     std::process::Command::new("open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         .spawn()

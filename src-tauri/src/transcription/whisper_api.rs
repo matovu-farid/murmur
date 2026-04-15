@@ -6,7 +6,7 @@ pub async fn transcribe_api(
     sample_rate: u32,
     api_key: &str,
 ) -> Result<String, TranscribeError> {
-    let tmp_path = std::env::temp_dir().join("wipr_recording.wav");
+    let tmp_path = std::env::temp_dir().join("murmur_recording.wav");
     write_wav(&tmp_path, audio, sample_rate)?;
 
     let file_bytes = std::fs::read(&tmp_path).map_err(TranscribeError::IoError)?;
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn test_write_wav_creates_file() {
         let samples = vec![0.0f32; 16000];
-        let path = std::env::temp_dir().join("wipr_test.wav");
+        let path = std::env::temp_dir().join("murmur_test.wav");
         write_wav(&path, &samples, 16000).unwrap();
         assert!(path.exists());
         let reader = hound::WavReader::open(&path).unwrap();

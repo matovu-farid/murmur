@@ -75,6 +75,18 @@ fn open_accessibility_settings_cmd() {
     ai::context::open_accessibility_settings();
 }
 
+#[tauri::command]
+fn open_accessibility_pane_cmd() {
+    ai::context::open_accessibility_pane();
+}
+
+#[tauri::command]
+fn check_microphone_permission() -> bool {
+    // macOS handles microphone permissions automatically via system dialog
+    // when the app first tries to access the microphone through cpal
+    true
+}
+
 // ---------------------------------------------------------------------------
 // Model download command
 // ---------------------------------------------------------------------------
@@ -331,6 +343,8 @@ pub fn run() {
             export_history,
             check_accessibility_permission,
             open_accessibility_settings_cmd,
+            open_accessibility_pane_cmd,
+            check_microphone_permission,
             download_model,
         ])
         .setup(move |app| {
@@ -342,7 +356,7 @@ pub fn run() {
                 "overlay",
                 tauri::WebviewUrl::App("/#/".into()),
             )
-            .title("Wipr Overlay")
+            .title("Murmur Overlay")
             .decorations(false)
             .always_on_top(true)
             .inner_size(400.0, 100.0)
@@ -358,7 +372,7 @@ pub fn run() {
                         "onboarding",
                         tauri::WebviewUrl::App("/#/onboarding".into()),
                     )
-                    .title("Welcome to Wipr")
+                    .title("Welcome to Murmur")
                     .inner_size(500.0, 600.0)
                     .center()
                     .build()?;

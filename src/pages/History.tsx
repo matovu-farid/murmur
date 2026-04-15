@@ -27,7 +27,7 @@ export function History() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "wipr-history.json";
+        a.download = "murmur-history.json";
         a.click();
         URL.revokeObjectURL(url);
       },

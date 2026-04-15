@@ -1,12 +1,12 @@
 [package]
-name = "wipr"
+name = "murmur"
 version = "0.1.0"
 description = "macOS voice-to-text dictation tool"
 authors = [""]
 edition = "2021"
 
 [lib]
-name = "wipr_lib"
+name = "murmur_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

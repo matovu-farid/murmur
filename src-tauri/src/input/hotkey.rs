@@ -67,7 +67,7 @@ pub fn start_fn_key_monitor(callback: HotkeyCallback) -> FnKeyMonitor {
             Err(_) => {
                 eprintln!(
                     "Failed to create event tap. \
-                     Ensure Wipr has Input Monitoring permission."
+                     Ensure Murmur has Input Monitoring permission."
                 );
             }
         }

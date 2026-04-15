@@ -37,7 +37,7 @@ export function Settings() {
       <SettingsSection title="General">
         <Toggle
           label="Launch at login"
-          description="Start Wipr automatically when you log in"
+          description="Start Murmur automatically when you log in"
           checked={local.general.auto_start}
           onChange={(v) =>
             update({ general: { ...local.general, auto_start: v } })

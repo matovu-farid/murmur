@@ -85,7 +85,7 @@ impl Default for AppConfig {
 pub fn config_dir() -> PathBuf {
     dirs::config_dir()
         .expect("Could not find config directory")
-        .join("wipr")
+        .join("murmur")
 }
 
 pub fn config_path() -> PathBuf {
