@@ -1,0 +1,48 @@
+[package]
+name = "murmur"
+version = "0.1.0"
+edition = "2021"
+description = "macOS voice-to-text dictation tool"
+authors = [""]
+license = "MIT"
+
+[[bin]]
+name = "murmur"
+path = "src/main.rs"
+
+[lib]
+name = "murmur"
+path = "src/lib.rs"
+
+[dependencies]
+cpal = "0.15"
+hound = "3.5"
+whisper-rs = "0.16"
+reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
+rusqlite = { version = "0.33", features = ["bundled"] }
+core-graphics = "0.25"
+core-foundation = "0.10"
+mac-notification-sys = "0.6"
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+dialoguer = "0.11"
+indicatif = "0.17"
+colored = "2"
+nix = { version = "0.29", features = ["signal", "process"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+dirs = "6"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+regex-lite = "0.1"
+anyhow = "1"
+ctrlc = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
