@@ -1,15 +1,42 @@
-cask "murmur" do
-  version "0.1.0"
-  sha256 :no_check
-
-  url "https://github.com/OWNER/murmur/releases/download/v#{version}/Murmur_#{version}_aarch64.dmg"
-  name "Murmur"
-  desc "macOS voice-to-text dictation tool"
+class Murmur < Formula
+  desc "macOS voice-to-text dictation daemon"
   homepage "https://github.com/OWNER/murmur"
+  version "0.1.0"
 
-  app "Murmur.app"
+  on_macos do
+    on_arm do
+      url "https://github.com/OWNER/murmur/releases/download/v#{version}/murmur-#{version}-aarch64-apple-darwin.tar.gz"
+      sha256 "REPLACE_WITH_ARM64_SHA256"
+    end
 
-  zap trash: [
-    "~/.config/murmur",
-  ]
+    on_intel do
+      url "https://github.com/OWNER/murmur/releases/download/v#{version}/murmur-#{version}-x86_64-apple-darwin.tar.gz"
+      sha256 "REPLACE_WITH_X86_64_SHA256"
+    end
+  end
+
+  def install
+    bin.install "murmur"
+  end
+
+  def caveats
+    <<~EOS
+      Murmur needs Input Monitoring permission to detect the fn key.
+      Open System Settings → Privacy & Security → Input Monitoring,
+      then enable Murmur after first run.
+
+      To start the daemon:
+        murmur start
+
+      To install for auto-start on login:
+        murmur install
+
+      To configure interactively:
+        murmur config
+    EOS
+  end
+
+  test do
+    assert_match "murmur", shell_output("#{bin}/murmur --version")
+  end
 end
