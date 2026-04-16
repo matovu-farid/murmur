@@ -1,0 +1,241 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*.*.*-*'   # pre-release tags like v0.0.1-test
+
+permissions:
+  contents: write   # required for gh release create and pushing formula update
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: aarch64-apple-darwin
+          - runner: macos-13
+            target: x86_64-apple-darwin
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Create temporary keychain and import signing cert
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          echo "$APPLE_CERTIFICATE_P12_BASE64" | base64 -d > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Sign binary
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          BIN="target/${{ matrix.target }}/release/murmur"
+          codesign \
+            --sign "Developer ID Application: Farid Matovu (${APPLE_TEAM_ID})" \
+            --options runtime \
+            --timestamp \
+            --force \
+            "$BIN"
+          codesign --verify --strict --verbose=2 "$BIN"
+
+      - name: Create .zip for notarization
+        run: |
+          set -euo pipefail
+          BIN="target/${{ matrix.target }}/release/murmur"
+          ditto -c -k --keepParent "$BIN" "$RUNNER_TEMP/murmur-notarize.zip"
+
+      - name: Submit for notarization
+        env:
+          APP_STORE_CONNECT_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/key.p8"
+          echo "$APP_STORE_CONNECT_KEY_P8" | base64 -d > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          xcrun notarytool submit "$RUNNER_TEMP/murmur-notarize.zip" \
+            --key "$KEY_PATH" \
+            --key-id "$APP_STORE_CONNECT_KEY_ID" \
+            --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
+            --wait \
+            --timeout 20m
+
+      - name: Package for distribution
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          TARGET="${{ matrix.target }}"
+          STAGE="$RUNNER_TEMP/stage"
+          mkdir -p "$STAGE"
+          cp "target/$TARGET/release/murmur" "$STAGE/murmur"
+          tar -C "$STAGE" -czf "murmur-${VERSION}-${TARGET}.tar.gz" murmur
+          shasum -a 256 "murmur-${VERSION}-${TARGET}.tar.gz" | awk '{print $1}' > "${TARGET}.sha256"
+          echo "Tarball:"
+          ls -la "murmur-${VERSION}-${TARGET}.tar.gz"
+          echo "SHA256: $(cat ${TARGET}.sha256)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            murmur-${{ steps.version.outputs.version }}-${{ matrix.target }}.tar.gz
+            ${{ matrix.target }}.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Cleanup keychain and credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/key.p8" "$RUNNER_TEMP/murmur-notarize.zip"
+
+  publish:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      arm64_sha: ${{ steps.shas.outputs.arm64_sha }}
+      x86_64_sha: ${{ steps.shas.outputs.x86_64_sha }}
+      version: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Read SHA256 values
+        id: shas
+        run: |
+          set -euo pipefail
+          ARM64_SHA=$(cat artifacts/aarch64-apple-darwin/aarch64-apple-darwin.sha256)
+          X86_64_SHA=$(cat artifacts/x86_64-apple-darwin/x86_64-apple-darwin.sha256)
+          echo "arm64_sha=$ARM64_SHA" >> "$GITHUB_OUTPUT"
+          echo "x86_64_sha=$X86_64_SHA" >> "$GITHUB_OUTPUT"
+          echo "arm64:  $ARM64_SHA"
+          echo "x86_64: $X86_64_SHA"
+
+      - name: Build checksums.txt
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.build.outputs.version }}"
+          ARM64_SHA="${{ steps.shas.outputs.arm64_sha }}"
+          X86_64_SHA="${{ steps.shas.outputs.x86_64_sha }}"
+          {
+            echo "${ARM64_SHA}  murmur-${VERSION}-aarch64-apple-darwin.tar.gz"
+            echo "${X86_64_SHA}  murmur-${VERSION}-x86_64-apple-darwin.tar.gz"
+          } > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.build.outputs.version }}"
+          gh release create "v${VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "v${VERSION}" \
+            --generate-notes \
+            "artifacts/aarch64-apple-darwin/murmur-${VERSION}-aarch64-apple-darwin.tar.gz" \
+            "artifacts/x86_64-apple-darwin/murmur-${VERSION}-x86_64-apple-darwin.tar.gz" \
+            "checksums.txt"
+
+  update-formula:
+    name: update Homebrew formula
+    needs: publish
+    runs-on: ubuntu-latest
+    # Skip formula update for pre-release tags (e.g. v0.0.1-test)
+    if: ${{ !contains(needs.publish.outputs.version, '-') }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Render formula from template
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.publish.outputs.version }}"
+          ARM64_SHA="${{ needs.publish.outputs.arm64_sha }}"
+          X86_64_SHA="${{ needs.publish.outputs.x86_64_sha }}"
+          sed \
+            -e "s|{{VERSION}}|${VERSION}|g" \
+            -e "s|{{ARM64_SHA256}}|${ARM64_SHA}|g" \
+            -e "s|{{X86_64_SHA256}}|${X86_64_SHA}|g" \
+            Homebrew/murmur.rb.tmpl > Homebrew/murmur.rb
+          echo "--- Rendered formula ---"
+          cat Homebrew/murmur.rb
+
+      - name: Commit and push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.publish.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet Homebrew/murmur.rb; then
+            echo "No formula changes — nothing to commit."
+            exit 0
+          fi
+
+          git add Homebrew/murmur.rb
+          git commit -m "chore: update Homebrew formula to v${VERSION} [skip ci]"
+
+          # Retry-once on push conflict
+          if ! git push origin main; then
+            echo "Push conflict, retrying with rebase..."
+            git pull --rebase origin main
+            git push origin main
+          fi
