@@ -1,16 +1,16 @@
 class Murmur < Formula
   desc "macOS voice-to-text dictation daemon"
-  homepage "https://github.com/OWNER/murmur"
+  homepage "https://github.com/matovu-farid/murmur"
   version "0.1.0"
 
   on_macos do
     on_arm do
-      url "https://github.com/OWNER/murmur/releases/download/v#{version}/murmur-#{version}-aarch64-apple-darwin.tar.gz"
+      url "https://github.com/matovu-farid/murmur/releases/download/v#{version}/murmur-#{version}-aarch64-apple-darwin.tar.gz"
       sha256 "REPLACE_WITH_ARM64_SHA256"
     end
 
     on_intel do
-      url "https://github.com/OWNER/murmur/releases/download/v#{version}/murmur-#{version}-x86_64-apple-darwin.tar.gz"
+      url "https://github.com/matovu-farid/murmur/releases/download/v#{version}/murmur-#{version}-x86_64-apple-darwin.tar.gz"
       sha256 "REPLACE_WITH_X86_64_SHA256"
     end
   end
