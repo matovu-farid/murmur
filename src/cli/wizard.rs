@@ -18,14 +18,25 @@ pub fn run() -> Result<()> {
     let modes = ["Local (offline, private)", "API (OpenAI)"];
     let mode_idx = Select::with_theme(&theme)
         .with_prompt("Transcription mode")
-        .default(if config.transcription.mode == TranscriptionMode::Local { 0 } else { 1 })
+        .default(if config.transcription.mode == TranscriptionMode::Local {
+            0
+        } else {
+            1
+        })
         .items(&modes)
         .interact()?;
-    config.transcription.mode = if mode_idx == 0 { TranscriptionMode::Local } else { TranscriptionMode::Api };
+    config.transcription.mode = if mode_idx == 0 {
+        TranscriptionMode::Local
+    } else {
+        TranscriptionMode::Api
+    };
 
     if config.transcription.mode == TranscriptionMode::Local {
         let model_labels: Vec<&str> = MODELS.iter().map(|(_, l)| *l).collect();
-        let default_idx = MODELS.iter().position(|(name, _)| *name == config.transcription.model.as_str()).unwrap_or(3);
+        let default_idx = MODELS
+            .iter()
+            .position(|(name, _)| *name == config.transcription.model.as_str())
+            .unwrap_or(3);
         let model_idx = Select::with_theme(&theme)
             .with_prompt("Whisper model")
             .default(default_idx)
@@ -69,10 +80,18 @@ pub fn run() -> Result<()> {
     let hotkey_modes = ["Hold to record (default)", "Press to toggle"];
     let hk_idx = Select::with_theme(&theme)
         .with_prompt("Hotkey mode")
-        .default(if config.hotkey.mode == HotkeyMode::Hold { 0 } else { 1 })
+        .default(if config.hotkey.mode == HotkeyMode::Hold {
+            0
+        } else {
+            1
+        })
         .items(&hotkey_modes)
         .interact()?;
-    config.hotkey.mode = if hk_idx == 0 { HotkeyMode::Hold } else { HotkeyMode::Toggle };
+    config.hotkey.mode = if hk_idx == 0 {
+        HotkeyMode::Hold
+    } else {
+        HotkeyMode::Toggle
+    };
 
     config.general.auto_start = Confirm::with_theme(&theme)
         .with_prompt("Auto-start on login?")

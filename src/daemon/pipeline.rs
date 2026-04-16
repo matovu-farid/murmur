@@ -1,5 +1,5 @@
-use crate::audio;
 use crate::ai;
+use crate::audio;
 use crate::config::settings::{config_dir, models_dir, AppConfig, TranscriptionMode};
 use crate::history::HistoryStore;
 use crate::input;
@@ -12,9 +12,9 @@ pub async fn run(config: AppConfig) -> Result<()> {
     notify::notify_info("Murmur is listening");
     tracing::info!("Dictation pipeline starting");
 
-    let history = Arc::new(Mutex::new(
-        HistoryStore::new(config_dir().join("history.db").to_str().unwrap())?,
-    ));
+    let history = Arc::new(Mutex::new(HistoryStore::new(
+        config_dir().join("history.db").to_str().unwrap(),
+    )?));
 
     let (hotkey_tx, hotkey_rx) = std::sync::mpsc::channel::<input::hotkey::HotkeyEvent>();
     let (audio_tx, audio_rx) = std::sync::mpsc::channel::<(Vec<f32>, u32, f32)>();
@@ -22,14 +22,16 @@ pub async fn run(config: AppConfig) -> Result<()> {
     // Recording thread
     std::thread::spawn(move || {
         let recorder = audio::Recorder::new();
-        let mut active_stream: Option<cpal::Stream> = None;
+        let mut _active_stream: Option<cpal::Stream> = None;
 
         while let Ok(event) = hotkey_rx.recv() {
             match event {
                 input::hotkey::HotkeyEvent::RecordStart => {
                     tracing::info!("Recording started");
                     match recorder.start() {
-                        Ok(stream) => { active_stream = Some(stream); }
+                        Ok(stream) => {
+                            _active_stream = Some(stream);
+                        }
                         Err(e) => {
                             tracing::error!("Failed to start recording: {}", e);
                             notify::notify_error(&format!("Recording failed: {}", e));
@@ -38,7 +40,7 @@ pub async fn run(config: AppConfig) -> Result<()> {
                 }
                 input::hotkey::HotkeyEvent::RecordStop => {
                     let samples = recorder.stop();
-                    active_stream = None;
+                    _active_stream = None;
 
                     let sample_rate = recorder.sample_rate();
                     let duration = audio::Recorder::duration_secs(&samples, sample_rate);
@@ -79,7 +81,8 @@ pub async fn run(config: AppConfig) -> Result<()> {
     ctrlc::set_handler(move || {
         tracing::info!("Received shutdown signal");
         let _ = term_tx.send(());
-    }).ok();
+    })
+    .ok();
     let _ = term_rx.recv();
 
     notify::notify_info("Murmur stopped");
@@ -94,19 +97,28 @@ async fn process_recording(
     duration: f32,
 ) {
     let processed = audio::preprocessing::preprocess(&samples, sample_rate);
-    if processed.is_empty() { return; }
+    if processed.is_empty() {
+        return;
+    }
 
     let raw_text = match config.transcription.mode {
         TranscriptionMode::Api => {
-            transcription::whisper_api::transcribe_api(&processed, sample_rate, &config.transcription.api_key).await
+            transcription::whisper_api::transcribe_api(
+                &processed,
+                sample_rate,
+                &config.transcription.api_key,
+            )
+            .await
         }
         TranscriptionMode::Local => {
             let model_path = models_dir().join(format!("ggml-{}.bin", config.transcription.model));
             let mp = model_path.to_string_lossy().to_string();
             let audio = processed.clone();
-            tokio::task::spawn_blocking(move || transcription::whisper_local::transcribe_local(&audio, &mp))
-                .await
-                .unwrap_or_else(|e| Err(transcription::TranscribeError::ModelError(e.to_string())))
+            tokio::task::spawn_blocking(move || {
+                transcription::whisper_local::transcribe_local(&audio, &mp)
+            })
+            .await
+            .unwrap_or_else(|e| Err(transcription::TranscribeError::ModelError(e.to_string())))
         }
     };
 
@@ -119,24 +131,43 @@ async fn process_recording(
         }
     };
 
-    if raw_text.trim().is_empty() { return; }
+    if raw_text.trim().is_empty() {
+        return;
+    }
 
     let cmd_result = ai::commands::process_commands(&raw_text);
-    if cmd_result.should_stop { return; }
+    if cmd_result.should_stop {
+        return;
+    }
     let text_after_commands = cmd_result.text.clone();
-    if text_after_commands.is_empty() { return; }
+    if text_after_commands.is_empty() {
+        return;
+    }
 
     let final_text = if config.ai_cleanup.enabled && !config.transcription.api_key.is_empty() {
         let context = if config.general.context_aware {
             let ctx = ai::context::read_cursor_context(200);
-            if ctx.is_empty() { None } else { Some(ctx) }
-        } else { None };
+            if ctx.is_empty() {
+                None
+            } else {
+                Some(ctx)
+            }
+        } else {
+            None
+        };
         let instructions = if config.ai_cleanup.custom_instructions.is_empty() {
             None
         } else {
             Some(config.ai_cleanup.custom_instructions.as_str())
         };
-        match ai::cleanup::cleanup_text(&text_after_commands, context.as_deref(), instructions, &config.transcription.api_key).await {
+        match ai::cleanup::cleanup_text(
+            &text_after_commands,
+            context.as_deref(),
+            instructions,
+            &config.transcription.api_key,
+        )
+        .await
+        {
             Ok(cleaned) => cleaned,
             Err(e) => {
                 tracing::warn!("AI cleanup failed: {}", e);
@@ -152,7 +183,11 @@ async fn process_recording(
         notify::notify_error(&format!("Insert failed: {}", e));
     }
 
-    if let Err(e) = history.lock().unwrap().insert(&raw_text, &final_text, duration) {
+    if let Err(e) = history
+        .lock()
+        .unwrap()
+        .insert(&raw_text, &final_text, duration)
+    {
         tracing::warn!("History insert failed: {}", e);
     }
 

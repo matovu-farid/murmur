@@ -1,5 +1,5 @@
 use clap::Parser;
-use murmur::cli::{Cli, commands};
+use murmur::cli::{commands, Cli};
 
 fn main() {
     let cli = Cli::parse();

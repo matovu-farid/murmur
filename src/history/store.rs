@@ -45,12 +45,7 @@ impl HistoryStore {
         Ok(Self { conn })
     }
 
-    pub fn insert(
-        &self,
-        raw_text: &str,
-        cleaned_text: &str,
-        duration_secs: f32,
-    ) -> SqlResult<i64> {
+    pub fn insert(&self, raw_text: &str, cleaned_text: &str, duration_secs: f32) -> SqlResult<i64> {
         let timestamp = chrono::Local::now().to_rfc3339();
         self.conn.execute(
             "INSERT INTO transcriptions (timestamp, raw_text, cleaned_text, duration_secs) VALUES (?1, ?2, ?3, ?4)",

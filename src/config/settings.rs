@@ -215,6 +215,10 @@ mod tests {
     #[test]
     fn test_config_dir_ends_with_murmur() {
         let dir = config_dir();
-        assert!(dir.ends_with("murmur"), "config_dir should end with 'murmur', got: {:?}", dir);
+        assert!(
+            dir.ends_with("murmur"),
+            "config_dir should end with 'murmur', got: {:?}",
+            dir
+        );
     }
 }

@@ -4,7 +4,11 @@ pub mod wizard;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(name = "murmur", version, about = "macOS voice-to-text dictation daemon")]
+#[command(
+    name = "murmur",
+    version,
+    about = "macOS voice-to-text dictation daemon"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,

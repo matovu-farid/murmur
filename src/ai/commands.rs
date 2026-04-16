@@ -11,7 +11,9 @@ pub fn process_commands(raw_text: &str) -> CommandResult {
 
     let lower = text.to_lowercase();
     let should_stop = lower.contains("stop listening");
-    if should_stop { had_commands = true; }
+    if should_stop {
+        had_commands = true;
+    }
 
     let replacements = [
         ("new paragraph", "\n\n"),
@@ -27,7 +29,8 @@ pub fn process_commands(raw_text: &str) -> CommandResult {
     ];
 
     for (command, replacement) in &replacements {
-        let re = regex_lite::Regex::new(&format!(r"(?i)\b{}\b", regex_lite::escape(command))).unwrap();
+        let re =
+            regex_lite::Regex::new(&format!(r"(?i)\b{}\b", regex_lite::escape(command))).unwrap();
         if re.is_match(&text) {
             had_commands = true;
             text = re.replace_all(&text, *replacement).to_string();
@@ -44,8 +47,12 @@ pub fn process_commands(raw_text: &str) -> CommandResult {
     }
 
     text = text
-        .replace(" .", ".").replace(" ,", ",").replace(" ?", "?")
-        .replace(" !", "!").replace(" ;", ";").replace(" :", ":");
+        .replace(" .", ".")
+        .replace(" ,", ",")
+        .replace(" ?", "?")
+        .replace(" !", "!")
+        .replace(" ;", ";")
+        .replace(" :", ":");
 
     let text = text
         .lines()
@@ -56,7 +63,12 @@ pub fn process_commands(raw_text: &str) -> CommandResult {
         .to_string();
     let all_commands = had_commands && text.is_empty();
 
-    CommandResult { text, had_commands, all_commands, should_stop }
+    CommandResult {
+        text,
+        had_commands,
+        all_commands,
+        should_stop,
+    }
 }
 
 #[cfg(test)]

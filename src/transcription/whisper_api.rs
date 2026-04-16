@@ -64,16 +64,16 @@ fn write_wav(
         sample_format: hound::SampleFormat::Int,
     };
     let mut writer = hound::WavWriter::create(path, spec)
-        .map_err(|e| TranscribeError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| TranscribeError::IoError(std::io::Error::other(e)))?;
     for &sample in samples {
         let s = (sample * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-        writer.write_sample(s).map_err(|e| {
-            TranscribeError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e))
-        })?;
+        writer
+            .write_sample(s)
+            .map_err(|e| TranscribeError::IoError(std::io::Error::other(e)))?;
     }
-    writer.finalize().map_err(|e| {
-        TranscribeError::IoError(std::io::Error::new(std::io::ErrorKind::Other, e))
-    })?;
+    writer
+        .finalize()
+        .map_err(|e| TranscribeError::IoError(std::io::Error::other(e)))?;
     Ok(())
 }
 

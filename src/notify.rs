@@ -4,14 +4,16 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 const APP_NAME: &str = "Murmur";
 
-pub fn init_logging(log_dir: &PathBuf, foreground: bool) -> tracing_appender::non_blocking::WorkerGuard {
+pub fn init_logging(
+    log_dir: &PathBuf,
+    foreground: bool,
+) -> tracing_appender::non_blocking::WorkerGuard {
     std::fs::create_dir_all(log_dir).ok();
 
     let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "murmur.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let file_layer = fmt::layer().with_writer(non_blocking).with_ansi(false);
 
@@ -33,12 +35,8 @@ pub fn init_logging(log_dir: &PathBuf, foreground: bool) -> tracing_appender::no
 }
 
 fn send_notification(subtitle: &str, message: &str) {
-    if let Err(e) = mac_notification_sys::send_notification(
-        APP_NAME,
-        Some(subtitle),
-        message,
-        None,
-    ) {
+    if let Err(e) = mac_notification_sys::send_notification(APP_NAME, Some(subtitle), message, None)
+    {
         tracing::warn!("Failed to send notification: {}", e);
     }
 }

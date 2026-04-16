@@ -1,35 +1,63 @@
 /// Trim leading and trailing silence from audio samples.
 pub fn trim_silence(samples: &[f32], threshold: f32) -> &[f32] {
-    let start = samples.iter().position(|&s| s.abs() > threshold).unwrap_or(0);
-    let end = samples.iter().rposition(|&s| s.abs() > threshold).map(|p| p + 1).unwrap_or(0);
-    if start >= end { return &[]; }
+    let start = samples
+        .iter()
+        .position(|&s| s.abs() > threshold)
+        .unwrap_or(0);
+    let end = samples
+        .iter()
+        .rposition(|&s| s.abs() > threshold)
+        .map(|p| p + 1)
+        .unwrap_or(0);
+    if start >= end {
+        return &[];
+    }
     &samples[start..end]
 }
 
 /// Normalize audio gain to a target peak amplitude.
 pub fn normalize_gain(samples: &[f32], target_peak: f32) -> Vec<f32> {
     let max_amplitude = samples.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
-    if max_amplitude < 1e-6 { return samples.to_vec(); }
+    if max_amplitude < 1e-6 {
+        return samples.to_vec();
+    }
     let gain = target_peak / max_amplitude;
-    samples.iter().map(|&s| (s * gain).clamp(-1.0, 1.0)).collect()
+    samples
+        .iter()
+        .map(|&s| (s * gain).clamp(-1.0, 1.0))
+        .collect()
 }
 
 /// Basic noise reduction using spectral subtraction.
 pub fn reduce_noise(samples: &[f32], sample_rate: u32) -> Vec<f32> {
     let noise_sample_len = (sample_rate as f32 * 0.2) as usize;
-    if samples.len() <= noise_sample_len { return samples.to_vec(); }
-    let noise_floor: f32 = samples[..noise_sample_len].iter().map(|s| s.abs()).sum::<f32>() / noise_sample_len as f32;
-    samples.iter().map(|&s| {
-        if s.abs() > noise_floor * 2.0 { s }
-        else { s * (s.abs() / (noise_floor * 2.0)).clamp(0.0, 1.0) }
-    }).collect()
+    if samples.len() <= noise_sample_len {
+        return samples.to_vec();
+    }
+    let noise_floor: f32 = samples[..noise_sample_len]
+        .iter()
+        .map(|s| s.abs())
+        .sum::<f32>()
+        / noise_sample_len as f32;
+    samples
+        .iter()
+        .map(|&s| {
+            if s.abs() > noise_floor * 2.0 {
+                s
+            } else {
+                s * (s.abs() / (noise_floor * 2.0)).clamp(0.0, 1.0)
+            }
+        })
+        .collect()
 }
 
 /// Full preprocessing pipeline: noise reduction -> silence trimming -> gain normalization
 pub fn preprocess(samples: &[f32], sample_rate: u32) -> Vec<f32> {
     let denoised = reduce_noise(samples, sample_rate);
     let trimmed = trim_silence(&denoised, 0.01);
-    if trimmed.is_empty() { return Vec::new(); }
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
     normalize_gain(trimmed, 0.9)
 }
 
@@ -105,7 +133,11 @@ mod tests {
         let samples = vec![0.5, -0.8, 0.3];
         let normalized = normalize_gain(&samples, 2.0);
         for &s in &normalized {
-            assert!(s >= -1.0 && s <= 1.0, "Sample {} out of [-1, 1] range", s);
+            assert!(
+                (-1.0..=1.0).contains(&s),
+                "Sample {} out of [-1, 1] range",
+                s
+            );
         }
     }
 

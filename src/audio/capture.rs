@@ -1,10 +1,19 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 
 pub struct Recorder {
     samples: Arc<Mutex<Vec<f32>>>,
     is_recording: Arc<AtomicBool>,
     sample_rate: u32,
+}
+
+impl Default for Recorder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Recorder {

@@ -5,7 +5,8 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 pub fn transcribe_local(audio: &[f32], model_path: &str) -> Result<String, TranscribeError> {
     if !Path::new(model_path).exists() {
         return Err(TranscribeError::ModelError(format!(
-            "Model not found: {}. Download it from settings.", model_path
+            "Model not found: {}. Download it from settings.",
+            model_path
         )));
     }
 
@@ -19,10 +20,12 @@ pub fn transcribe_local(audio: &[f32], model_path: &str) -> Result<String, Trans
     params.set_print_timestamps(false);
     params.set_no_context(true);
 
-    let mut state = ctx.create_state()
+    let mut state = ctx
+        .create_state()
         .map_err(|e| TranscribeError::ModelError(format!("Failed to create state: {}", e)))?;
 
-    state.full(params, audio)
+    state
+        .full(params, audio)
         .map_err(|e| TranscribeError::ModelError(format!("Transcription failed: {}", e)))?;
 
     let n_segments = state.full_n_segments();
@@ -60,7 +63,10 @@ pub async fn download_model(
 
     let url = model_download_url(model_name);
     let client = reqwest::Client::new();
-    let response = client.get(&url).send().await
+    let response = client
+        .get(&url)
+        .send()
+        .await
         .map_err(|e| TranscribeError::ApiError(format!("Download failed: {}", e)))?;
 
     let total = response.content_length().unwrap_or(0);
@@ -71,7 +77,8 @@ pub async fn download_model(
 
     use futures_util::StreamExt;
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| TranscribeError::ApiError(format!("Download error: {}", e)))?;
+        let chunk =
+            chunk.map_err(|e| TranscribeError::ApiError(format!("Download error: {}", e)))?;
         std::io::Write::write_all(&mut file, &chunk).map_err(TranscribeError::IoError)?;
         downloaded += chunk.len() as u64;
         on_progress(downloaded, total);
@@ -87,7 +94,10 @@ mod tests {
     #[test]
     fn test_model_download_url() {
         let url = model_download_url("medium.en");
-        assert_eq!(url, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin");
+        assert_eq!(
+            url,
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin"
+        );
     }
 
     #[test]
@@ -101,19 +111,28 @@ mod tests {
     #[test]
     fn test_model_download_url_tiny_en() {
         let url = model_download_url("tiny.en");
-        assert_eq!(url, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin");
+        assert_eq!(
+            url,
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin"
+        );
     }
 
     #[test]
     fn test_model_download_url_base_en() {
         let url = model_download_url("base.en");
-        assert_eq!(url, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin");
+        assert_eq!(
+            url,
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+        );
     }
 
     #[test]
     fn test_model_download_url_small_en() {
         let url = model_download_url("small.en");
-        assert_eq!(url, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin");
+        assert_eq!(
+            url,
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin"
+        );
     }
 
     #[test]

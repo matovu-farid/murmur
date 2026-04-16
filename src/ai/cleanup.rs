@@ -1,19 +1,33 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
-struct ChatMessage { role: String, content: String }
+struct ChatMessage {
+    role: String,
+    content: String,
+}
 
 #[derive(Serialize)]
-struct ChatRequest { model: String, messages: Vec<ChatMessage>, temperature: f32, max_tokens: u32 }
+struct ChatRequest {
+    model: String,
+    messages: Vec<ChatMessage>,
+    temperature: f32,
+    max_tokens: u32,
+}
 
 #[derive(Deserialize)]
-struct ChatResponse { choices: Vec<ChatChoice> }
+struct ChatResponse {
+    choices: Vec<ChatChoice>,
+}
 
 #[derive(Deserialize)]
-struct ChatChoice { message: ChatMessageResponse }
+struct ChatChoice {
+    message: ChatMessageResponse,
+}
 
 #[derive(Deserialize)]
-struct ChatMessageResponse { content: String }
+struct ChatMessageResponse {
+    content: String,
+}
 
 pub async fn cleanup_text(
     raw_text: &str,
@@ -39,13 +53,22 @@ pub async fn cleanup_text(
             user_content.push_str(&format!("Context (text before cursor): {}\n", ctx));
         }
     }
-    user_content.push_str(&format!("Raw transcription: {}\n\nReturn only the cleaned text, nothing else.", raw_text));
+    user_content.push_str(&format!(
+        "Raw transcription: {}\n\nReturn only the cleaned text, nothing else.",
+        raw_text
+    ));
 
     let request = ChatRequest {
         model: "gpt-4o-mini".to_string(),
         messages: vec![
-            ChatMessage { role: "system".to_string(), content: system_prompt },
-            ChatMessage { role: "user".to_string(), content: user_content },
+            ChatMessage {
+                role: "system".to_string(),
+                content: system_prompt,
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: user_content,
+            },
         ],
         temperature: 0.3,
         max_tokens: 2048,
@@ -57,18 +80,26 @@ pub async fn cleanup_text(
         .header("Authorization", format!("Bearer {}", api_key))
         .json(&request)
         .timeout(std::time::Duration::from_secs(15))
-        .send().await
+        .send()
+        .await
         .map_err(|e| format!("Cleanup API error: {}", e))?;
 
     if !response.status().is_success() {
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
         return Err(format!("Cleanup API error: {}", error_text));
     }
 
-    let result: ChatResponse = response.json().await
+    let result: ChatResponse = response
+        .json()
+        .await
         .map_err(|e| format!("Failed to parse cleanup response: {}", e))?;
 
-    result.choices.first()
+    result
+        .choices
+        .first()
         .map(|c| c.message.content.trim().to_string())
         .ok_or_else(|| "No response from cleanup API".to_string())
 }
@@ -82,8 +113,14 @@ mod tests {
         let request = ChatRequest {
             model: "gpt-4o-mini".to_string(),
             messages: vec![
-                ChatMessage { role: "system".to_string(), content: "test system".to_string() },
-                ChatMessage { role: "user".to_string(), content: "test user".to_string() },
+                ChatMessage {
+                    role: "system".to_string(),
+                    content: "test system".to_string(),
+                },
+                ChatMessage {
+                    role: "user".to_string(),
+                    content: "test user".to_string(),
+                },
             ],
             temperature: 0.3,
             max_tokens: 2048,
@@ -119,7 +156,10 @@ mod tests {
                 user_content.push_str(&format!("Context (text before cursor): {}\n", ctx));
             }
         }
-        user_content.push_str(&format!("Raw transcription: {}\n\nReturn only the cleaned text, nothing else.", "hello world"));
+        user_content.push_str(&format!(
+            "Raw transcription: {}\n\nReturn only the cleaned text, nothing else.",
+            "hello world"
+        ));
         assert!(user_content.contains("Context (text before cursor): Dear Sir,"));
         assert!(user_content.contains("Raw transcription: hello world"));
     }
@@ -133,7 +173,10 @@ mod tests {
                 user_content.push_str(&format!("Context (text before cursor): {}\n", ctx));
             }
         }
-        user_content.push_str(&format!("Raw transcription: {}\n\nReturn only the cleaned text, nothing else.", "hello world"));
+        user_content.push_str(&format!(
+            "Raw transcription: {}\n\nReturn only the cleaned text, nothing else.",
+            "hello world"
+        ));
         assert!(!user_content.contains("Context"));
         assert!(user_content.starts_with("Raw transcription:"));
     }

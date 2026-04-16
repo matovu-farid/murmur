@@ -59,9 +59,7 @@ pub fn execute_editing_command(command: &str) -> Result<(), String> {
         "delete that" | "undo that" => {
             r#"tell application "System Events" to keystroke "z" using command down"#
         }
-        "select all" => {
-            r#"tell application "System Events" to keystroke "a" using command down"#
-        }
+        "select all" => r#"tell application "System Events" to keystroke "a" using command down"#,
         _ => return Err(format!("Unknown editing command: {}", command)),
     };
     let output = Command::new("osascript")

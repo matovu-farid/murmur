@@ -65,9 +65,13 @@ fn format_uptime(secs: u64) -> String {
     let h = secs / 3600;
     let m = (secs % 3600) / 60;
     let s = secs % 60;
-    if h > 0 { format!("{}h {}m {}s", h, m, s) }
-    else if m > 0 { format!("{}m {}s", m, s) }
-    else { format!("{}s", s) }
+    if h > 0 {
+        format!("{}h {}m {}s", h, m, s)
+    } else if m > 0 {
+        format!("{}m {}s", m, s)
+    } else {
+        format!("{}s", s)
+    }
 }
 
 fn config(action: Option<ConfigAction>) -> Result<()> {
@@ -99,8 +103,8 @@ fn config_set(key: &str, value: &str) -> Result<()> {
     let cfg = load_config();
     let mut json = serde_json::to_value(&cfg)?;
     set_dotted(&mut json, key, value)?;
-    let new_cfg: crate::config::settings::AppConfig = serde_json::from_value(json)
-        .context("Invalid value for that key")?;
+    let new_cfg: crate::config::settings::AppConfig =
+        serde_json::from_value(json).context("Invalid value for that key")?;
     save_config(&new_cfg).map_err(anyhow::Error::msg)?;
     println!("{} Set {} = {}", "✓".green(), key, value);
     Ok(())
@@ -118,11 +122,16 @@ fn set_dotted(value: &mut Value, key: &str, new_value: &str) -> Result<()> {
     let parts: Vec<&str> = key.split('.').collect();
     let mut current = value;
     for part in &parts[..parts.len() - 1] {
-        current = current.get_mut(*part).ok_or_else(|| anyhow!("Unknown key path: {}", key))?;
+        current = current
+            .get_mut(*part)
+            .ok_or_else(|| anyhow!("Unknown key path: {}", key))?;
     }
     let last = parts.last().unwrap();
-    let parsed: Value = serde_json::from_str(new_value).unwrap_or_else(|_| Value::String(new_value.to_string()));
-    let target = current.get_mut(*last).ok_or_else(|| anyhow!("Unknown key: {}", key))?;
+    let parsed: Value =
+        serde_json::from_str(new_value).unwrap_or_else(|_| Value::String(new_value.to_string()));
+    let target = current
+        .get_mut(*last)
+        .ok_or_else(|| anyhow!("Unknown key: {}", key))?;
     *target = parsed;
     Ok(())
 }
@@ -168,11 +177,22 @@ fn print_history(entries: &[crate::history::TranscriptionEntry]) {
         return;
     }
     for entry in entries {
-        let ts = entry.timestamp.split('T').next().unwrap_or(&entry.timestamp);
-        let time = entry.timestamp
-            .split('T').nth(1).unwrap_or("")
-            .split('.').next().unwrap_or("")
-            .split('+').next().unwrap_or("");
+        let ts = entry
+            .timestamp
+            .split('T')
+            .next()
+            .unwrap_or(&entry.timestamp);
+        let time = entry
+            .timestamp
+            .split('T')
+            .nth(1)
+            .unwrap_or("")
+            .split('.')
+            .next()
+            .unwrap_or("")
+            .split('+')
+            .next()
+            .unwrap_or("");
         println!(
             "{} {} {} {}",
             ts.dimmed(),
@@ -200,9 +220,11 @@ fn download(model: &str) -> Result<()> {
     let dir = crate::config::settings::models_dir();
     let pb = ProgressBar::new(0);
     pb.set_style(
-        ProgressStyle::with_template("{spinner:.green} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-            .unwrap()
-            .progress_chars("#>-"),
+        ProgressStyle::with_template(
+            "{spinner:.green} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})",
+        )
+        .unwrap()
+        .progress_chars("#>-"),
     );
 
     let pb_clone = pb.clone();
