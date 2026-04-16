@@ -19,8 +19,16 @@ jobs:
         include:
           - runner: macos-14
             target: aarch64-apple-darwin
-          - runner: macos-13
+            cmake_arch: arm64
+          - runner: macos-14
             target: x86_64-apple-darwin
+            cmake_arch: x86_64
+
+    env:
+      # Ensure cmake-based C deps (whisper.cpp via whisper-rs) cross-compile correctly.
+      # macos-14 runner is arm64; x86_64 target requires explicit arch hints.
+      CMAKE_OSX_ARCHITECTURES: ${{ matrix.cmake_arch }}
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
 
     outputs:
       version: ${{ steps.version.outputs.version }}
