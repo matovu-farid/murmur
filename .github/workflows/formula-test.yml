@@ -1,0 +1,28 @@
+name: formula-test
+
+on:
+  pull_request:
+    paths:
+      - 'Homebrew/murmur.rb'
+      - 'Homebrew/murmur.rb.tmpl'
+      - '.github/workflows/formula-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test-formula:
+    name: brew install + audit
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Brew audit
+        run: brew audit --strict --formula ./Homebrew/murmur.rb
+
+      - name: Brew install (will fetch release tarball)
+        run: brew install --formula ./Homebrew/murmur.rb
+
+      - name: Verify binary runs
+        run: murmur --version
