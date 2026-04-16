@@ -1,0 +1,9 @@
+pub mod audio;
+pub mod transcription;
+pub mod ai;
+pub mod input;
+pub mod config;
+pub mod history;
+pub mod cli;
+pub mod daemon;
+pub mod notify;
