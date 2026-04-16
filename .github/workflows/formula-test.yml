@@ -16,7 +16,7 @@ jobs:
     runs-on: macos-14
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Brew audit
         run: brew audit --strict --formula ./Homebrew/murmur.rb
