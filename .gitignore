@@ -3,3 +3,13 @@ target/
 dist/
 .DS_Store
 *.swp
+
+# Secrets — never commit
+*.p8
+*.p12
+*.cer
+*.certSigningRequest
+.env
+.env.*
+!.env.example
+
